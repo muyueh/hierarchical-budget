@@ -220,8 +220,56 @@ d3.hierarchy(data)
     .eachAfter(d => d.index = d.parent ? d.parent.index = d.parent.index + 1 || 0 : 0)
 )}
 
-function _data(FileAttachment){return(
-FileAttachment("flare-2.json").json()
+function _data(FileAttachment,d3){return(
+FileAttachment("tw2019ap.csv").text().then(text => {
+  const rows = d3.csvParse(text, d => ({
+    topname: d.topname,
+    depname: d.depname,
+    cat: d.cat,
+    name: d.name,
+    amount: +d.amount
+  }));
+
+  const root = {name: "2019 中央政府總預算", children: []};
+  const topMap = new Map();
+
+  for (const row of rows) {
+    if (!row.amount) continue;
+
+    let topNode = topMap.get(row.topname);
+    if (!topNode) {
+      topNode = {name: row.topname, children: [], depMap: new Map()};
+      topMap.set(row.topname, topNode);
+      root.children.push(topNode);
+    }
+
+    let depNode = topNode.depMap.get(row.depname);
+    if (!depNode) {
+      depNode = {name: row.depname, children: [], catMap: new Map()};
+      topNode.depMap.set(row.depname, depNode);
+      topNode.children.push(depNode);
+    }
+
+    let catNode = depNode.catMap.get(row.cat);
+    if (!catNode) {
+      catNode = {name: row.cat, children: []};
+      depNode.catMap.set(row.cat, catNode);
+      depNode.children.push(catNode);
+    }
+
+    catNode.children.push({name: row.name, value: row.amount});
+  }
+
+  function strip(node) {
+    if (!node.children) return node;
+    node.children = node.children.map(strip);
+    delete node.depMap;
+    delete node.catMap;
+    return node;
+  }
+
+  return strip(root);
+})
 )}
 
 function _x(d3,marginLeft,width,marginRight){return(
@@ -290,7 +338,7 @@ export default function define(runtime, observer) {
   const main = runtime.module();
   function toString() { return this.url; }
   const fileAttachments = new Map([
-    ["flare-2.json", {url: new URL("./files/e65374209781891f37dea1e7a6e1c5e020a3009b8aedf113b4c80942018887a1176ad4945cf14444603ff91d3da371b3b0d72419fa8d2ee0f6e815732475d5de.json", import.meta.url), mimeType: "application/json", toString}]
+    ["tw2019ap.csv", {url: new URL("./tw2019ap.csv", import.meta.url), mimeType: "text/csv", toString}]
   ]);
   main.builtin("FileAttachment", runtime.fileAttachments(name => fileAttachments.get(name)));
   main.variable(observer()).define(["md"], _1);
@@ -301,7 +349,7 @@ export default function define(runtime, observer) {
   main.variable(observer("stack")).define("stack", ["x","barStep"], _stack);
   main.variable(observer("stagger")).define("stagger", ["x","barStep"], _stagger);
   main.variable(observer("root")).define("root", ["d3","data"], _root);
-  main.variable(observer("data")).define("data", ["FileAttachment"], _data);
+  main.variable(observer("data")).define("data", ["FileAttachment","d3"], _data);
   main.variable(observer("x")).define("x", ["d3","marginLeft","width","marginRight"], _x);
   main.variable(observer("xAxis")).define("xAxis", ["marginTop","d3","x","width"], _xAxis);
   main.variable(observer("yAxis")).define("yAxis", ["marginLeft","marginTop","height","marginBottom"], _yAxis);
